@@ -174,7 +174,7 @@ class GameMap:
         self.y_num = y_num
         self.wid = WIDTH // x_num
         self.hei = HEIGHT // y_num
-        self.map_data = self._create_map_data()
+        self.map_data = self._create_map_data()  # マップのデータを作成
         self.rocks = pg.sprite.Group()  # 岩のグループ作成
 
     def _create_map_data(self) -> list[list[dict]]:
@@ -416,8 +416,7 @@ class BossLife(pg.sprite.Sprite):
         super().__init__()
         self.image = pg.image.load("img/heart.png").convert_alpha()
         self.image = pg.transform.scale(self.image, (32, 32))
-        self.rect = self.image.get_rect()
-        self.rect.center = coor
+        self.rect = self.image.get_rect(center = coor)  # rect.centerにcoorを設定
 
 
 class BossPlayer(pg.sprite.Sprite):
@@ -593,11 +592,11 @@ class BossCurveBullet(BossBaseBullet):
     ボス戦に使用する
     """
 
-    def __init__(self, target_rect: pg.Rect, rect: pg.Rect, speed: float):
+    def __init__(self, target_rect: pg.Rect, rect: pg.Rect, speed: float, color: tuple):
         """
-        引数：プレイヤーRect, 敵Rect, 速さ（float）
+        引数：プレイヤーRect, 敵Rect, 速さ（float）, color
         """
-        super().__init__(rect, NEON_PINK)
+        super().__init__(rect, color)
         dx = target_rect.centerx - rect.centerx
         dy = target_rect.centery - rect.centery
         self.base_rad = math.atan2(dy, dx)
@@ -662,11 +661,11 @@ class BossShotgunBullet(BossBaseBullet):
     ボス戦に使用する
     """
 
-    def __init__(self, rect: pg.Rect, speed: float, bullet_group: pg.sprite.Group):
+    def __init__(self, rect: pg.Rect, speed: float, bullet_group: pg.sprite.Group, color: tuple):
         """
         引数：敵Rect, 速さ（float, 敵の弾幕グループ（pygame.sprite.Group）
         """
-        super().__init__(rect, BLUE)
+        super().__init__(rect, color)
         self.bullet_group = bullet_group
         self.speed = speed
         self.target_x = WIDTH // 2
@@ -707,7 +706,7 @@ class BossPreviewBullet(BossBaseBullet):
     ボス戦に使用する
     """
 
-    def __init__(self, player_rect: pg.Rect, speed: float):
+    def __init__(self, player_rect: pg.Rect, speed: float, color: tuple):
         """
         引数：プレイヤーの中心座標, 速さ
         """
@@ -715,7 +714,7 @@ class BossPreviewBullet(BossBaseBullet):
         start_x = player_rect[0] + random.randint(-200, 200)
         self.start_pos = (start_x, -20)
         dummy_rect = pg.Rect(start_x, -20, 10, 10)
-        super().__init__(dummy_rect, RED)
+        super().__init__(dummy_rect, color)
         self.radius = 5
         target_pos = (player_rect[0] + random.randint(-200, 200), player_rect[1])
         dx = target_pos[0] - self.start_pos[0]
@@ -730,7 +729,7 @@ class BossPreviewBullet(BossBaseBullet):
         if self.preview_vy > 0:
             t_y = (HEIGHT - self.start_pos[1]) / self.preview_vy
         else:
-            t_y = float('inf')  # 零除算を防ぐ
+            t_y = float('inf')  # ゼロ除算を防ぐ
         if self.preview_vx > 0:
             t_x = (x_right_outline - self.start_pos[0]) / self.preview_vx
         elif self.preview_vx < 0:
@@ -964,11 +963,11 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock):
         # 予告弾
         if tmr % 360 == 0:
             for _ in range(7):
-                preview_bullet = BossPreviewBullet(player_rct.center, 50)
+                preview_bullet = BossPreviewBullet(player_rct.center, 50, RED)
                 enemy_bullets.add(preview_bullet)
         # 散弾
         if tmr % 300 == 0:
-            shotgun_bullet = BossShotgunBullet(enemy_rct, 5, enemy_bullets)
+            shotgun_bullet = BossShotgunBullet(enemy_rct, 5, enemy_bullets, BLUE)
             enemy_bullets.add(shotgun_bullet)
         # 拡散弾
         if tmr % 120 == 0:
@@ -982,7 +981,7 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock):
             enemy_bullets.add(linear_bullet)
         # 曲線弾
         if tmr % 60 in [0, 5, 10]:  # 三連で発射
-            curve_bullet = BossCurveBullet(player_rct, enemy_rct, 6)
+            curve_bullet = BossCurveBullet(player_rct, enemy_rct, 6, NEON_PINK)
             enemy_bullets.add(curve_bullet)
         enemy_bullets.update()
         player_bullets.draw(screen)
