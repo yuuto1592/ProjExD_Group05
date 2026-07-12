@@ -708,13 +708,14 @@ class BossPreviewBullet(BossBaseBullet):
     ボス戦に使用する
     """
 
-    def __init__(self, player_rect: pg.Rect, speed: float, color: tuple, line_snd: pg.mixer.Sound, bullet_snd: pg.mixer.Sound):
+    def __init__(self, player_rect: pg.Rect, speed: float, color: tuple, line_snd: pg.mixer.Sound, bullet_snd: pg.mixer.Sound, sound_judge: bool):
         """
-        引数：プレイヤーの中心座標, 速さ, 色, 予告線効果音, 弾の効果音
+        引数：プレイヤーの中心座標, 速さ, 色, 予告線効果音, 弾の効果音, 効果音を発生させるかのフラグ(True:鳴らす、False:鳴らさない)
         """
 
         self.line_snd = line_snd  # 効果音定義（予告線）
         self.bullet_snd = bullet_snd  # 効果音定義（弾）
+        self.sound_judge = sound_judge
         start_x = player_rect[0] + random.randint(-200, 200)
         self.start_pos = (start_x, -20)
         dummy_rect = pg.Rect(start_x, -20, 10, 10)
@@ -757,7 +758,8 @@ class BossPreviewBullet(BossBaseBullet):
     def update(self):
         self.tmr += 1
         if self.tmr == self.preview_time:
-            self.bullet_snd.play()  # 効果音再生
+            if self.sound_judge:
+                self.bullet_snd.play()  # 効果音再生
             self.vx = self.preview_vx
             self.vy = self.preview_vy
 
@@ -774,7 +776,7 @@ class BossPreviewBullet(BossBaseBullet):
         limit_time = self.preview_time - 20
         if self.tmr < limit_time:
             cycle = limit_time // 3
-            if self.tmr % cycle == 0:
+            if self.tmr % cycle == 0 and self.sound_judge:
                 self.line_snd.play()  # 効果音再生
             if (self.tmr % cycle) < (cycle // 2):
                 pg.draw.line(screen, GRAY, self.start_pos, self.line_end, 1)
@@ -804,11 +806,13 @@ def game_over(screen: pg.Surface):
     """
     GAMEOVER画面を表示するもの
     """
+    snd = pg.mixer.Sound("sound/gameover.wav")  # 効果音定義（GAME OVER音）
     fonto = pg.font.Font(None, 100)
     txt = fonto.render("GAME OVER", True, RED)
     txt_rect = txt.get_rect(center = (WIDTH // 2, HEIGHT // 2))  # テキストを画面の中央に配置
     screen.fill(BLACK)
     screen.blit(txt, txt_rect)
+    snd.play()  # 効果音再生
     pg.display.update()
     time.sleep(2)
 
@@ -817,11 +821,13 @@ def game_clear(screen: pg.Surface):
     """
     GAMECLEAR画面を表示するもの
     """
+    snd = pg.mixer.Sound("sound/gameclear.wav")  # 効果音定義（GAME CLEAR音）
     fonto = pg.font.Font(None, 100)
     txt = fonto.render("GAME CLEAR", True, GOLD)
     txt_rect = txt.get_rect(center = (WIDTH // 2, HEIGHT // 2))  # テキストを画面の中央に配置
     screen.fill(BLUE)
     screen.blit(txt, txt_rect)
+    snd.play()  # 効果音再生
     pg.display.update()
     time.sleep(2)
 
@@ -920,7 +926,7 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock):
     引数：画像Surface, pg.time.Clock
     """
     pg.mixer.music.load("sound/boss_bgm.wav")  # BGM定義
-    pg.mixer.music.set_volume(0.4)  # BGM音量調整
+    pg.mixer.music.set_volume(0.3)  # BGM音量調整
     pg.mixer.music.play(loops = -1)  # BGMループ
     linear_bullet_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義
     linear_bullet_snd.set_volume(0.5)  # 音量調整
@@ -932,7 +938,6 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock):
     player_bullet_snd = pg.mixer.Sound("sound/boss_player_bullet.wav")  # 効果音定義
     player_bullet_snd.set_volume(0.5)  # 音量調整
     preview_line_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義（予告線）
-    preview_line_snd.set_volume(0.7)  # 音量調整
     preview_bullet_snd = pg.mixer.Sound("sound/boss_preview_bullet.wav")  # 効果音定義
     outline_left = BossOutline(x_left_outline)  # 左側境界線
     outline_right = BossOutline(x_right_outline)  # 右側境界線
@@ -985,8 +990,9 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock):
         # 弾処理(敵)
         # 予告弾
         if tmr % 360 == 0:
-            for _ in range(7):
-                preview_bullet = BossPreviewBullet(player_rct.center, 50, RED, preview_line_snd, preview_bullet_snd)
+            for i in range(7):
+                sound_judge = (i == 0)  # 最初だけ効果音を鳴らす
+                preview_bullet = BossPreviewBullet(player_rct.center, 50, RED, preview_line_snd, preview_bullet_snd, sound_judge)
                 enemy_bullets.add(preview_bullet)
         # 散弾
         if tmr % 300 == 0:
