@@ -1754,7 +1754,7 @@ def lastbattle(screen: pg.Surface, clock: pg.time.Clock, player_life: int) -> bo
         enemy_lifes.add(BossLife(coors[1]))
     tmr = 0  # 1フレームごとのカウント
     # 体力調整
-    for _ in range(player // 10):
+    for _ in range(MAX_LIFE - max(1, int(player_life // 10))):
         player_lifes.sprites()[0].kill()
     # bool型定義(判定)
     space_judge = False  # プレイヤーの攻撃フラグ
