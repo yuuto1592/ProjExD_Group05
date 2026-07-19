@@ -13,7 +13,6 @@ WIDTH = 1240  # 横幅(x)
 HEIGHT = 680  # 縦幅(y)
 FPS = 60  # フレーム数
 TILE_SIZE = 55
-TILE_SIZE = 55
 # 移動範囲制限（ボス戦用）
 MARGIN = 10  # ボス専用
 MOVE_SPEED = 5  # ボス専用
@@ -21,11 +20,8 @@ MAX_LIFE = 20  # 体力数指定, ボス専用
 # 動作範囲横幅判定
 x_left_outline = WIDTH // 25  # ボス専用
 x_right_outline = WIDTH - x_left_outline - 1  # ボス専用
-broke_tiles=pg.sprite.Group()
-# マップのデータ（シード値）を格納しているもの（0：道、移動可能, 1：障害物、移動不可, 2：敵, 3:ボス, 4:ミニゲーム, 5:罠(7回踏んだら死)）
-broke_tiles=pg.sprite.Group()
-# マップのデータ（シード値）を格納しているもの（0：道、移動可能, 1：障害物、移動不可, 2：敵, 3:ボス, 4:ミニゲーム, 5:罠(7回踏んだら死)）
-SEEDS =[
+# マップのデータ（シード値）を格納しているもの（0：道、移動可能, 1：障害物、移動不可, 2：敵, 3:ボス, 4:ミニゲーム, 5:罠(踏むごとに30ダメージ)）
+SEEDS = [
     [  # 最上段
         [  # マップ番号(0, 0) 左上
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -167,6 +163,7 @@ MONSTER_DATA = {
     "ゴーレム": {"max_hp": 400, "atk": 30, "weight": 10},
     "ドラゴン": {"max_hp": 500, "atk": 60, "weight": 5} 
 }
+
 # ======↑定数定義↑======
 
 
@@ -213,16 +210,6 @@ class GameMap:
                 row_lis.append(cell_data)
             map_data.append(row_lis)
         return map_data
-    
-    def update_line(self, screen: pg.Surface):
-        """
-        マップに線を描画するもの
-        デバッグ用
-        """
-        for i in range(1, self.x_num):
-            pg.draw.line(screen, RED, (self.wid * i, 0), (self.wid * i, HEIGHT), 1)
-        for i in range(1, self.y_num):
-            pg.draw.line(screen, RED, (0, self.hei * i), (WIDTH, self.hei * i), 1)
 
     def get_cell(self, row: int, col: int) -> dict:
         """
@@ -248,13 +235,14 @@ class GameMap:
                 if seed[row][col] == 1:  # 岩のマスか判定
                     rock = Rock(self.map_data[row][col]["coor"])  # 岩を生成
                     self.rocks.add(rock)  # 岩を岩グループに追加
-                elif seed[row][col] ==4:
-                    minigame_tile=MinigameTile(self.map_data[row][col]["coor"]) #ミニゲームマスの見た目生成
+                elif seed[row][col] == 4:
+                    minigame_tile = MinigameTile(self.map_data[row][col]["coor"]) #ミニゲームマスの見た目生成
                     self.minigame_tiles.add(minigame_tile)
                 elif seed[row][col] == 5:  # 5だったら罠を作る
                     trap = Trap(self.map_data[row][col]["coor"]) #罠生成
                     self.traps.add(trap) #罠を罠グループに追加
                 self.map_data[row][col]["type"] = seed[row][col]  # seedに沿ってtypeを上書（マップ形成）
+
     def check_move(self, row: int, col: int) -> int:
         """
         移動できるのかを判定するもの
@@ -339,25 +327,9 @@ class MinigameTile(pg.sprite.Sprite):
         引数:マスの中心座標,tuple(x,y)
         """
         super().__init__()
-        self.image=pg.image.load("img/mark_exclamation.png")  #イベントマス画像
-        self.image=pg.transform.scale(self.image,(52,52))
+        self.image = pg.image.load("img/mark_exclamation.png")  #イベントマス画像
+        self.image = pg.transform.scale(self.image,(52,52))
         self.rect = self.image.get_rect(center = coor)  # rect.centerにcoorを設定
-
-    
-
-class MinigameTile(pg.sprite.Sprite):
-    """
-    ミニゲームマスの見た目に関するもの
-    """
-    def __init__(self,coor:tuple[int,int]):
-        """
-        引数:マスの中心座標,tuple(x,y)
-        """
-        super().__init__()
-        self.image=pg.image.load("img/mark_exclamation.png")  #イベントマス画像
-        self.image=pg.transform.scale(self.image,(52,52))
-        self.rect = self.image.get_rect(center = coor)  # rect.centerにcoorを設定
-
     
 
 class Enemy(pg.sprite.Sprite):
@@ -451,6 +423,7 @@ class Player(pg.sprite.Sprite):
             self.rect.center = self.game_map.get_cell(self.row, self.col)["coor"]
         return None
     
+
 class Trap(pg.sprite.Sprite):
     """
     罠に関するもの（見える罠）
@@ -461,72 +434,56 @@ class Trap(pg.sprite.Sprite):
         self.image = pg.Surface((30, 30))  # プレイヤーより少し小さめのサイズ
         self.image.fill(PURPLE)            # 紫で見えるようにする
         self.rect = self.image.get_rect(center=coor)
-        
-
-def check_bound(obj_rct: pg.Rect) -> tuple[bool, bool]:
-    """
-    オブジェクトが画面内or画面外を判定し，真理値タプルを返す関数
-    引数：こうかとんや爆弾，ビームなどのRect
-    戻り値：横方向，縦方向のはみ出し判定結果（画面内：True／画面外：False）
-    """
-    yoko, tate = True, True
-    if obj_rct.left < 0 or WIDTH < obj_rct.right:
-        yoko = False
-    if obj_rct.top < 0 or HEIGHT < obj_rct.bottom:
-        tate = False
-    return yoko, tate
 
 
 class TileTile(pg.sprite.Sprite):
-    def __init__(self, x, y,TILE_SIZE):
+    def __init__(self, x, y, TILE_SIZE, enemy_img):
         super().__init__()
-        self.timer = random.randint(20,10000)
+        self.timer = random.randint(20, 10000)
         self.image = pg.Surface((TILE_SIZE, TILE_SIZE))  
-        self.image.fill(CHOCOLATE)  
+        self.image.fill(CHOCOLATE)
+        self.enemy_img = enemy_img
         self.rect = self.image.get_rect() #タイルの作成
         self.rect.x = x
         self.rect.y = y
         
-
-    def update(self):
+    def update(self, broke_tiles: pg.sprite.Group):
+        """
+        引数：壊れたアイルを追加する先のグループ
+        """
         self.timer -= 1
-        if 0< self.timer <=1000:
+        if 0< self.timer <= 1000:
             self.image.fill((200, 150, 50))
-        elif self.timer <=0:
+        elif self.timer <= 0:
             current_x = self.rect.x
             current_y = self.rect.y
             self.kill() #タイルそれぞれのカウントダウンがゼロになったとき、タイルを消す
-            broke_tiles.add(TileBroke_Tile(current_x,current_y,TILE_SIZE)) #代わりに触ると死亡するタイルをグループに追加
+            broke_tiles.add(TileBroke_Tile(current_x, current_y, TILE_SIZE, self.enemy_img)) #代わりに触ると死亡するタイルをグループに追加
             
 
 class TileBroke_Tile(pg.sprite.Sprite):
-    def __init__(self, x, y,TILE_SIZE):
+    def __init__(self, x, y, TILE_SIZE, enemy_img):
         super().__init__()
-        self.timer = random.randint(20,5000)
-        img = pg.image.load("img/rock.png").convert_alpha()  # 現時点仮の岩画像
-        Rock.base_image = pg.transform.scale(img, (90, 90))
-        self.image = img  # 壊れたタイル
-        self.image = pg.Surface((TILE_SIZE, TILE_SIZE))  # 壊れたタイル
-        self.image.fill(RED)  # 落ちた先
+        self.timer = random.randint(20, 5000)
+        self.image = pg.transform.scale(enemy_img, (TILE_SIZE, TILE_SIZE))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
 
 
 class TileItem(pg.sprite.Sprite):
-    def __init__(self, x, y,TILE_SIZE):
+    def __init__(self, x, y, TILE_SIZE):
         super().__init__()
         self.image = pg.Surface((TILE_SIZE-10, TILE_SIZE-10))  
         self.image.fill(GREEN)  
         self.rect = self.image.get_rect() #itemの作成
         self.rect.x = x
         self.rect.y = y
-    
 
 
 class TilePlayer(pg.sprite.Sprite):
     """
-    ゲームキャラクター（こうかとん）に関するクラス
+    ゲームキャラクターに関するクラス
     """
     delta = {  # 押下キーと移動量の辞書
         pg.K_UP: (0, -1),
@@ -535,11 +492,10 @@ class TilePlayer(pg.sprite.Sprite):
         pg.K_RIGHT: (+1, 0),
     }
 
-    def __init__(self, num: int, xy: tuple[int, int]):
+    def __init__(self, xy: tuple[int, int]):
         """
         画像Surfaceを生成する
-        引数1 num：画像ファイル名の番号
-        引数2 xy：画像の位置座標タプル
+        引数 xy：画像の位置座標タプル
         """
         super().__init__()
         img0 = pg.transform.rotozoom(pg.image.load(f"img/player.png"), 0, 1.5)
@@ -562,11 +518,10 @@ class TilePlayer(pg.sprite.Sprite):
         self.state = "normal"  # 追加点
         self.hyper_life = 0  # 追加点
 
-    def change_img(self,screen: pg.Surface):
+    def change_img(self, screen: pg.Surface):
         """
         画像を切り替え，画面に転送する
-        引数1 num：こうかとん画像ファイル名の番号
-        引数2 screen：画面Surface
+        引数 screen：画面Surface
         """
         self.image = pg.transform.rotozoom(pg.image.load(f"img/player.png"), 0, 0.9)
         screen.blit(self.image, self.rect)
@@ -596,15 +551,15 @@ class TilePoint():
     取らなければいけないポイントと今まで取ったポイントを表示するためのクラス
     """
     def __init__(self):
-        self.point=0
-        self.fonto = pg.font.Font(None,40)
+        self.point = 0
+        self.fonto = pg.font.Font(None, 40)
 
-    def update(self,screen:pg.Surface,itemnum:int):
+    def update(self, screen:pg.Surface, itemnum:int):
         """
         現在のポイントを取得し、とらなければいけないポイントとともに表示する
         """
-        txt = self.fonto.render(str(self.point)+"/"+str(int(itemnum*0.6+1)), True, (0,0,0))
-        screen.blit(txt,(0,0))
+        txt = self.fonto.render(str(self.point) + "/" + str(int(itemnum*0.6+1)), True, (0, 0, 0))
+        screen.blit(txt, (0, 0))
 
 
 class BossOutline:
@@ -638,7 +593,7 @@ class BossLife(pg.sprite.Sprite):
     x_player_life = WIDTH // 50  # プレイヤーの体力を表示するx座標
     x_enemy_life = WIDTH - (WIDTH // 50) - 1  # 敵の体力を表示するx座標
     y_step = HEIGHT // MAX_LIFE  # 体力を均等に配置するための縦スペースを計算
-    life_coor = []
+    life_coor = []  # 体力を表示する座標を格納するもの
     for i in range(MAX_LIFE):
         life_coor.append([
             [x_player_life, i * y_step + (y_step // 2)],
@@ -651,7 +606,7 @@ class BossLife(pg.sprite.Sprite):
         """
         super().__init__()
         self.image = pg.image.load("img/heart.png").convert_alpha()
-        self.image = pg.transform.scale(self.image, (32, 32))
+        self.image = pg.transform.scale(self.image, (32, 32))  # サイズ設定
         self.rect = self.image.get_rect(center = coor)  # rect.centerにcoorを設定
 
 
@@ -677,7 +632,7 @@ class BossPlayer(pg.sprite.Sprite):
         """
         super().__init__()
         self.image = pg.image.load("img/player.png").convert_alpha()
-        self.image = pg.transform.scale(self.image, (32, 32))
+        self.image = pg.transform.scale(self.image, (32, 32))  # サイズ設定
         self.rect = self.image.get_rect(center = (WIDTH // 4, HEIGHT // 2))
         self.radius = 16  # 当たり判定用半径
         self.outline_left = outline_left
@@ -707,10 +662,8 @@ class BossEnemy(pg.sprite.Sprite):
     ボス戦に使用する
     """
     MOVE_ENEMY = {
-        "up" : (0, -(MOVE_SPEED // 2)),
-        "down" : (0, MOVE_SPEED // 2),
-        "left" : (-(MOVE_SPEED // 2), 0),
-        "right" : (MOVE_SPEED // 2, 0),
+        "up" : (0, -(MOVE_SPEED)),
+        "down" : (0, MOVE_SPEED),
     }
     
     def __init__(self, outline_left: pg.Rect, outline_right: pg.Rect):
@@ -719,12 +672,15 @@ class BossEnemy(pg.sprite.Sprite):
         """
         super().__init__()
         self.image = pg.image.load("img/enemy.png").convert_alpha()
-        self.image = pg.transform.scale(self.image, (32, 32))
-        self.rect = self.image.get_rect(center = ((WIDTH // 4)*3, HEIGHT // 2))
-        self.radius = 16  # 当たり判定用半径
+        self.image = pg.transform.scale(self.image, (64, 64))  # サイズ設定
+        self.rect = self.image.get_rect(center = ((WIDTH // 4)*3, HEIGHT // 2))  # rect.centerに((WIDTH // 4)*3, HEIGHT // 2)を設定
+        self.radius = 32  # 当たり判定用半径
         self.outline_left = outline_left
         self.outline_right = outline_right
-        self.vy = self.MOVE_ENEMY["down"][1]
+        if random.random() <= 0.5:
+            self.vy = self.MOVE_ENEMY["down"][1]
+        else:
+            self.vy = self.MOVE_ENEMY["up"][1]
 
     def update(self) -> tuple[bool, bool]:
         """
@@ -747,7 +703,6 @@ class BossBaseBullet(pg.sprite.Sprite):
     弾幕関係のもの
     ボス戦に使用する
     """
-
     def __init__(self, rect: pg.Rect, color: tuple):
         """
         引数：発射地Rect, 色
@@ -756,7 +711,7 @@ class BossBaseBullet(pg.sprite.Sprite):
         self.image = pg.Surface((10, 10))
         self.image.set_colorkey(BLACK)
         pg.draw.circle(self.image, color, (5, 5), 5)
-        self.rect = self.image.get_rect(center = rect.center)
+        self.rect = self.image.get_rect(center = rect.center)  # rect.centerにcoorを設定
         self.radius = 5  # 当たり判定用半径
         # 小数の計算結果をストックする
         self.exact_x = float(self.rect.centerx)
@@ -779,7 +734,6 @@ class BossDiffusionBullet(BossBaseBullet):
     拡散する弾幕
     ボス戦に使用する
     """
-
     def __init__(self, rect: pg.Rect, speed: float, diff_num: int, index: int, color: tuple):
         """
         引数：発射元Rect, 速さ（float）, 個数（int）, 弾の番号（int）, 色
@@ -803,7 +757,6 @@ class BossPlayerBullet(BossBaseBullet):
     プレイヤーの弾幕(直線)を生成するもの
     ボス戦に使用する
     """
-
     def __init__(self, rect: pg.Rect, speed: float):
         """
         引数：プレイヤーRect, 速さ
@@ -826,7 +779,6 @@ class BossCurveBullet(BossBaseBullet):
     曲がるような弾幕を発射させるもの
     ボス戦に使用する
     """
-
     def __init__(self, target_rect: pg.Rect, rect: pg.Rect, speed: float, color: tuple):
         """
         引数：プレイヤーRect, 敵Rect, 速さ（float）, 色
@@ -869,7 +821,6 @@ class BossLinearBullet(BossBaseBullet):
     ある時点でのプレイヤーの座標を取得して、そこへ弾幕を発射させるもの
     ボス戦に使用する
     """
-
     def __init__(self, target_rect: pg.Rect, rect: pg.Rect, speed: float, color: tuple):
         """
         引数：プレイヤーRect, 敵Rect, 速さ（float）, 色
@@ -895,7 +846,6 @@ class BossShotgunBullet(BossBaseBullet):
     散弾（中心で拡散）を発射させるもの
     ボス戦に使用する
     """
-
     def __init__(self, rect: pg.Rect, speed: float, bullet_group: pg.sprite.Group, color: tuple, snd: pg.mixer.Sound):
         """
         引数：敵Rect, 速さ（float）, 敵の弾幕グループ（pygame.sprite.Group）, 色, 弾の効果音
@@ -942,12 +892,10 @@ class BossPreviewBullet(BossBaseBullet):
     予告線に沿って高速で弾幕を発射させるもの
     ボス戦に使用する
     """
-
     def __init__(self, player_rect: pg.Rect, speed: float, color: tuple, line_snd: pg.mixer.Sound, bullet_snd: pg.mixer.Sound, sound_judge: bool):
         """
         引数：プレイヤーの中心座標, 速さ, 色, 予告線効果音, 弾の効果音, 効果音を発生させるかのフラグ(True:鳴らす、False:鳴らさない)
         """
-
         self.line_snd = line_snd  # 効果音定義（予告線）
         self.bullet_snd = bullet_snd  # 効果音定義（弾）
         self.sound_judge = sound_judge
@@ -984,10 +932,8 @@ class BossPreviewBullet(BossBaseBullet):
             self.start_pos[0] + self.preview_vx * t,
             self.start_pos[1] + self.preview_vy * t,
         )
-
         self.vx = 0
         self.vy = 0
-
         self.tmr = 0
         self.preview_time = 60  # 発射されるまでの時間（予告線を表示する時間）
 
@@ -1003,7 +949,6 @@ class BossPreviewBullet(BossBaseBullet):
         # 速度を座標に加算
         self.exact_x += self.vx
         self.exact_y += self.vy
-
         super().update()
     
     def draw_preview_line(self, screen: pg.Surface):
@@ -1011,7 +956,6 @@ class BossPreviewBullet(BossBaseBullet):
         予告線を表示させるもの
         引数：screen（画面Surface）
         """
-      
         limit_time = self.preview_time - 20
         # 発射の20フレーム前まで予告線を表示
         if self.tmr < limit_time:
@@ -1022,94 +966,6 @@ class BossPreviewBullet(BossBaseBullet):
             # 周期の半分は予告線を表示
             if (self.tmr % cycle) < (cycle // 2):
                 pg.draw.line(screen, GRAY, self.start_pos, self.line_end, 1)
-
-
-
-def tile_game() -> str:
-    pg.mixer.music.load("sound/boss_bgm.wav")  # BGM定義
-    pg.mixer.music.set_volume(0.3)  # BGM音量調整
-    pg.mixer.music.play(loops = -1)  # BGMループ
-    linear_bullet_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義
-    linear_bullet_snd.set_volume(0.5)  # 音量調整
-
-    pg.display.set_caption("タイル落下ゲーム")
-    screen = pg.display.set_mode((WIDTH, HEIGHT))
-    bg_img = pg.Surface((WIDTH, HEIGHT))
-    pg.draw.rect(bg_img, (0,0,0),pg.Rect(0,0,WIDTH, HEIGHT))  #黒い矩形を描画
-
-    
-    bird = TilePlayer(3, (900, 400))
-    point = TilePoint()
-    tiles= pg.sprite.Group()
-    items=pg.sprite.Group()
-    
-    
-    cols = WIDTH // (TILE_SIZE+10)
-    rows = HEIGHT//(TILE_SIZE+10)
-    itemnum=0
-    finish =0
-
-    for col in range(cols):
-            for row in range(rows+1):
-                itemor=random.randint(0,20)
-                tiles.add(TileTile((col * (TILE_SIZE+10))-5,(row*(TILE_SIZE+10))-5, TILE_SIZE)) #画面にタイルを作成
-                if itemor == 0:
-                    items.add(TileItem((col * (TILE_SIZE+10)),(row*(TILE_SIZE+10)), TILE_SIZE)) #画面にアイテムを作成
-                    itemnum+=1
-
-
-    tmr = 0
-    clock = pg.time.Clock()
-    
-    while True:
-        key_lst = pg.key.get_pressed()
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                return 0
-            
-
-        for bird in pg.sprite.spritecollide(bird, broke_tiles, True): #プレイヤーと壊れたタイルが接触したか判定
-            bird.kill()
-            finish=1
-
-        for item in pg.sprite.spritecollide(bird, items, True): #プレイヤーがitemを取得したか判定
-            point.point+=1
-            linear_bullet_snd.play()
-            item.kill()
-
-        if (point.point/itemnum)>0.6:
-            finish=2
-
-
-                
-        screen.blit(bg_img, [0, 0])
-        screen.fill((30, 30, 30))
-        
-        tiles.update()
-        tiles.draw(screen)
-        broke_tiles.update()
-        broke_tiles.draw(screen)
-        items.update()
-        items.draw(screen)
-        point.update(screen,itemnum)
-        bird.update(key_lst, screen)
-        pg.display.update()
-        tmr += 1
-        clock.tick(50)
-        if finish == 1: #gameover判定
-            time.sleep(1)
-            items.empty()
-            broke_tiles.empty()
-            tiles.empty()
-            pg.mixer.music.stop()
-            return "LOSE"
-        elif finish == 2:   #クリア判定
-            time.sleep(1)
-            items.empty()
-            broke_tiles.empty()
-            tiles.empty()
-            pg.mixer.music.stop()
-            return "WIN"
         
 # ===↑class定義↑===
 
@@ -1135,6 +991,108 @@ def get_japanese_font(size: int) -> pg.font.Font:
     # どれも見つからなかった場合はデフォルトフォント（日本語は文字化けする可能性あり）
     return pg.font.Font(None, size)
 
+
+def check_bound(obj_rct: pg.Rect) -> tuple[bool, bool]:
+    """
+    タイルゲームで使用
+    オブジェクトが画面内or画面外を判定し、真理値タプルを返す関数
+    引数：プレイヤーなどのRect
+    戻り値：横方向、縦方向のはみ出し判定結果（画面内：True / 画面外：False）
+    """
+    yoko, tate = True, True
+    if obj_rct.left < 0 or WIDTH < obj_rct.right:
+        yoko = False
+    if obj_rct.top < 0 or HEIGHT < obj_rct.bottom:
+        tate = False
+    return yoko, tate
+
+
+def tile_game(enemy_img) -> str:
+    """
+    タイルゲーム
+    """
+    pg.mixer.music.load("sound/boss_bgm.wav")  # BGM定義
+    pg.mixer.music.set_volume(0.3)  # BGM音量調整
+    pg.mixer.music.play(loops = -1)  # BGMループ
+    linear_bullet_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義
+    linear_bullet_snd.set_volume(0.5)  # 音量調整
+
+    # pg.display.set_caption("タイル落下ゲーム")
+    screen = pg.display.set_mode((WIDTH, HEIGHT))
+    bg_img = pg.Surface((WIDTH, HEIGHT))
+    pg.draw.rect(bg_img, (0 ,0 ,0), pg.Rect(0, 0, WIDTH, HEIGHT))  #黒い矩形を描画
+    
+    player = TilePlayer((900, 400))
+    point = TilePoint()
+    tiles = pg.sprite.Group()
+    items = pg.sprite.Group()
+    broke_tiles = pg.sprite.Group()
+    
+    cols = WIDTH // (TILE_SIZE+10)
+    rows = HEIGHT//(TILE_SIZE+10)
+    itemnum = 0
+    finish = 0
+
+    for col in range(cols):
+            for row in range(rows+1):
+                itemor = random.randint(0, 20)
+                tiles.add(TileTile((col*(TILE_SIZE+10))-5, (row*(TILE_SIZE+10))-5, TILE_SIZE, enemy_img)) #画面にタイルを作成
+                if itemor == 0:
+                    items.add(TileItem((col*(TILE_SIZE+10)), (row*(TILE_SIZE+10)), TILE_SIZE)) #画面にアイテムを作成
+                    itemnum += 1
+
+    tmr = 0
+    clock = pg.time.Clock()
+    
+    while True:
+        key_lst = pg.key.get_pressed()
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.mixer.music.stop()
+                return "QUIT"
+            
+        for _ in  pg.sprite.spritecollide(player, broke_tiles, True): #プレイヤーと壊れたタイルが接触したか判定
+            player.rect.center = (-10000, -10000)  # 消えたように見せかける
+            finish = 1
+
+        for item in pg.sprite.spritecollide(player, items, True): #プレイヤーがitemを取得したか判定
+            point.point += 1
+            linear_bullet_snd.play()
+            item.kill()
+
+        if (point.point/itemnum) > 0.6:
+            finish = 2
+                
+        screen.blit(bg_img, [0, 0])
+        screen.fill((30, 30, 30))
+        
+        tiles.update(broke_tiles)
+        tiles.draw(screen)
+        broke_tiles.update()
+        broke_tiles.draw(screen)
+        items.update()
+        items.draw(screen)
+        point.update(screen, itemnum)
+        player.update(key_lst, screen)
+        pg.display.update()
+        tmr += 1
+        clock.tick(50)
+        if finish == 1: #gameover判定
+            time.sleep(1)
+            items.empty()
+            broke_tiles.empty()
+            tiles.empty()
+            pg.mixer.music.stop()
+            return "LOSE"
+        elif finish == 2:   #クリア判定
+            time.sleep(1)
+            items.empty()
+            broke_tiles.empty()
+            tiles.empty()
+            pg.mixer.music.stop()
+            return "WIN"
+
+
 def draw_center_text(screen: pg.Surface, font: pg.font.Font, text: str, color: tuple, y_offset: int = 0):
     """
     画面中央（縦方向にy_offsetずらした位置）に文字列を描画するもの
@@ -1161,26 +1119,6 @@ def show_instruction(screen: pg.Surface, clock: pg.time.Clock, title: str, subti
         screen.fill(BLACK)
         draw_center_text(screen, font_title, title, WHITE, -30)
         draw_center_text(screen, font_sub, subtitle, WHITE, 60)
-        pg.display.update()
-        clock.tick(FPS)
-
-
-def show_result(screen: pg.Surface, clock: pg.time.Clock, is_clear: bool, duration: int = 1000):
-    """
-    ミニゲーム終了後の「CLEAR!/MISS...」演出を表示するもの
-    引数：画面Surface, Clock, クリアしたかbool, 表示時間ミリ秒int
-    """
-    font = get_japanese_font(100)
-    text = "CLEAR!" if is_clear else "MISS..."
-    color = GREEN if is_clear else RED
-    start_time = pg.time.get_ticks()
-    while pg.time.get_ticks() - start_time < duration:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
-        screen.fill(BLACK)
-        draw_center_text(screen, font, text, color)
         pg.display.update()
         clock.tick(FPS)
 
@@ -1237,6 +1175,8 @@ def microgame_dodge(screen: pg.Surface, clock: pg.time.Clock) -> bool:
     player_rect = pg.Rect(0, 0, 40, 40)
     player_rect.centerx = WIDTH // 2
     player_rect.bottom = HEIGHT - 20
+    player_img = pg.image.load("img/player.png").convert_alpha()
+    player_img = pg.transform.scale(player_img, (40, 40))
     blocks: list[pg.Rect] = []
     spawn_timer = 0
 
@@ -1274,77 +1214,13 @@ def microgame_dodge(screen: pg.Surface, clock: pg.time.Clock) -> bool:
                 return False  # 当たったら即失敗
 
         screen.fill(BLACK)
-        pg.draw.rect(screen, GREEN, player_rect)
+        screen.blit(player_img, player_rect)
         for block in blocks:
             pg.draw.rect(screen, RED, block)
         pg.display.update()
         clock.tick(FPS)
 
     return True  # 制限時間を耐えきったらクリア
-
-
-MINIGAMES = [microgame_mash, microgame_dodge]  # ミニゲーム一覧（増やす場合はここに追加）
-
-
-def run_minigame(screen: pg.Surface, clock: pg.time.Clock) -> bool:
-    """
-    MINIGAMESからランダムに1つ選んで実行し、結果演出まで行うもの
-    引数：画面Surface, Clock
-    戻り値：クリアしたかどうかbool
-    """
-    game_func = random.choice(MINIGAMES)
-    is_clear = game_func(screen, clock)
-    show_result(screen, clock, is_clear)
-    return is_clear
-
-
-def get_japanese_font(size: int) -> pg.font.Font:
-    """
-    日本語表示に対応したフォントを取得するもの
-    （pg.font.Font(None, ...)のデフォルトフォントは日本語グリフを持たないため、システムにインストールされている日本語フォントを探して使う）
-    引数：フォントサイズint
-    戻り値：pg.font.Fontオブジェクト
-    """
-    candidates = [
-        "Yu Gothic", "Meiryo", "MS Gothic", "MS UI Gothic",  # Windows
-        "Hiragino Sans", "Hiragino Kaku Gothic ProN",  # Mac
-        "Noto Sans CJK JP", "Noto Sans JP", "IPAGothic", "IPAexGothic", "TakaoGothic",  # Linux
-    ]
-    for name in candidates:
-        font_path = pg.font.match_font(name)
-        if font_path:
-            return pg.font.Font(font_path, size)
-    # どれも見つからなかった場合はデフォルトフォント（日本語は文字化けする可能性あり）
-    return pg.font.Font(None, size)
-
-def draw_center_text(screen: pg.Surface, font: pg.font.Font, text: str, color: tuple, y_offset: int = 0):
-    """
-    画面中央（縦方向にy_offsetずらした位置）に文字列を描画するもの
-    引数：画面Surface, フォント, 表示文字列, 色tuple, 縦方向のずらし量int
-    """
-    surf = font.render(text, True, color)
-    rect = surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + y_offset))
-    screen.blit(surf, rect)
-
-
-def show_instruction(screen: pg.Surface, clock: pg.time.Clock, title: str, subtitle: str, duration: int = 1200):
-    """
-    ミニゲーム開始前の「お題」演出を表示するもの（メイドインワリオ風）
-    引数：画面Surface, Clock, 大見出し文字列, 補足文字列, 表示時間ミリ秒int
-    """
-    font_title = get_japanese_font(110)
-    font_sub = get_japanese_font(40)
-    start_time = pg.time.get_ticks()
-    while pg.time.get_ticks() - start_time < duration:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
-        screen.fill(BLACK)
-        draw_center_text(screen, font_title, title, WHITE, -30)
-        draw_center_text(screen, font_sub, subtitle, WHITE, 60)
-        pg.display.update()
-        clock.tick(FPS)
 
 
 def show_result(screen: pg.Surface, clock: pg.time.Clock, is_clear: bool, duration: int = 1000):
@@ -1367,113 +1243,13 @@ def show_result(screen: pg.Surface, clock: pg.time.Clock, is_clear: bool, durati
         clock.tick(FPS)
 
 
-def microgame_mash(screen: pg.Surface, clock: pg.time.Clock) -> bool:
-    """
-    スペースキーを連打するミニゲーム
-    制限時間内に規定回数スペースキーを押せたらクリア
-    戻り値：クリアしたかどうかbool
-    """
-    show_instruction(screen, clock, "連打！", "スペースキーを連打しろ！")
-
-    font_big = get_japanese_font(90)
-    font_small = get_japanese_font(40)
-    TIME_LIMIT = 3000  # 制限時間（ミリ秒）
-    NEED_COUNT = 25  # 必要な連打回数
-    count = 0
-
-    start_time = pg.time.get_ticks()
-    while True:
-        elapsed = pg.time.get_ticks() - start_time
-        if elapsed >= TIME_LIMIT or count >= NEED_COUNT:
-            break
-
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                count += 1
-
-        screen.fill(BLACK)
-        draw_center_text(screen, font_big, f"{count} / {NEED_COUNT}", WHITE, -60)
-        draw_center_text(screen, font_small, f"残り {(TIME_LIMIT - elapsed) / 1000:.1f}秒", WHITE, 60)
-        pg.display.update()
-        clock.tick(FPS)
-
-    return count >= NEED_COUNT
-
-
-def microgame_dodge(screen: pg.Surface, clock: pg.time.Clock) -> bool:
-    """
-    ←→キーで落下してくるブロックを避けるミニゲーム
-    制限時間の間ブロックに当たらなければクリア
-    戻り値：クリアしたかどうかbool
-    """
-    show_instruction(screen, clock, "よけろ！", "←→キーでブロックを避けろ！")
-
-    TIME_LIMIT = 9000  # 制限時間（ミリ秒）
-    SPEED = 6  # プレイヤーの移動速度
-    BLOCK_SPEED = 6  # ブロックの落下速度
-    SPAWN_INTERVAL = 50  # ブロック生成間隔（ミリ秒）
-
-    player_rect = pg.Rect(0, 0, 40, 40)
-    player_rect.centerx = WIDTH // 2
-    player_rect.bottom = HEIGHT - 20
-    blocks: list[pg.Rect] = []
-    spawn_timer = 0
-
-    start_time = pg.time.get_ticks()
-    while pg.time.get_ticks() - start_time < TIME_LIMIT:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
-
-        # プレイヤー移動
-        keys = pg.key.get_pressed()
-        if keys[pg.K_LEFT]:
-            player_rect.x -= SPEED
-        if keys[pg.K_RIGHT]:
-            player_rect.x += SPEED
-        player_rect.x = max(0, min(WIDTH - player_rect.width, player_rect.x))
-
-        # ブロック生成
-        spawn_timer += clock.get_time()
-        if spawn_timer >= SPAWN_INTERVAL:
-            spawn_timer = 0
-            block_x = random.randint(0, WIDTH - 40)
-            blocks.append(pg.Rect(block_x, -40, 40, 40))
-
-        # ブロック移動と画面外削除
-        for block in blocks:
-            block.y += BLOCK_SPEED
-        blocks = [block for block in blocks if block.top < HEIGHT]
-
-        # 当たり判定
-        hitbox = player_rect.inflate(-10, -10)
-        for block in blocks:
-            if hitbox.colliderect(block):
-                return False  # 当たったら即失敗
-
-        screen.fill(BLACK)
-        pg.draw.rect(screen, GREEN, player_rect)
-        for block in blocks:
-            pg.draw.rect(screen, RED, block)
-        pg.display.update()
-        clock.tick(FPS)
-
-    return True  # 制限時間を耐えきったらクリア
-
-
-MINIGAMES = [microgame_mash, microgame_dodge]  # ミニゲーム一覧（増やす場合はここに追加）
-
-
 def run_minigame(screen: pg.Surface, clock: pg.time.Clock) -> bool:
     """
     MINIGAMESからランダムに1つ選んで実行し、結果演出まで行うもの
     引数：画面Surface, Clock
     戻り値：クリアしたかどうかbool
     """
+    MINIGAMES = [microgame_mash, microgame_dodge]  # ミニゲーム一覧（増やす場合はここに追加）
     game_func = random.choice(MINIGAMES)
     is_clear = game_func(screen, clock)
     show_result(screen, clock, is_clear)
@@ -1496,9 +1272,154 @@ def boss_check_range(outline_left_rct: pg.Rect, outline_right_rct: pg.Rect, coor
     return (beside, vertical)
 
 
+# ボス戦（弾幕ゲー）用関数
+def lastbattle(screen: pg.Surface, clock: pg.time.Clock, player_life: int) -> bool | str:
+    """
+    ボス戦の弾幕ゲーを処理する関数
+    引数：画像Surface, pg.time.Clock, プレイヤーの体力
+    戻り値：True, 終了ならstr（QUIT）
+    """
+    bg_image = pg.image.load("img/boss_back.png").convert_alpha()  # 背景画像
+    boss_bg = pg.transform.scale(bg_image, (WIDTH, HEIGHT))  # 背景画像を画面サイズに合わせる
+    pg.mixer.music.load("sound/boss_bgm.wav")  # BGM定義
+    pg.mixer.music.set_volume(0.3)  # BGM音量調整
+    pg.mixer.music.play(loops = -1)  # BGMループ
+    linear_bullet_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義
+    linear_bullet_snd.set_volume(0.5)  # 音量調整
+    curve_bullet_snd = pg.mixer.Sound("sound/boss_curve_bullet.wav")  # 効果音定義
+    curve_bullet_snd.set_volume(0.7)  # 音量調整
+    diffusion_bullet_snd = pg.mixer.Sound("sound/boss_diffusion_bullet.wav")  # 効果音定義
+    shotgun_bullet_snd = pg.mixer.Sound("sound/boss_shotgun_bullet.wav")  # 効果音定義
+    shotgun_bullet_snd.set_volume(0.7)  # 音量調整
+    player_bullet_snd = pg.mixer.Sound("sound/boss_player_bullet.wav")  # 効果音定義
+    player_bullet_snd.set_volume(0.5)  # 音量調整
+    preview_line_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義（予告線）
+    preview_bullet_snd = pg.mixer.Sound("sound/boss_preview_bullet.wav")  # 効果音定義
+    outline_left = BossOutline(x_left_outline)  # 左側境界線
+    outline_right = BossOutline(x_right_outline)  # 右側境界線
+    # 敵
+    enemy = pg.sprite.GroupSingle()
+    enemy.add(BossEnemy(outline_left.rct, outline_right.rct))
+    # プレイヤー
+    player = pg.sprite.GroupSingle()
+    player.add(BossPlayer(outline_left.rct, outline_right.rct))
+    enemy_bullets = pg.sprite.Group()  # 弾幕描画(敵)
+    player_bullets = pg.sprite.Group()  # 弾幕描画(プレイヤー)
+    # 体力描画
+    player_lifes = pg.sprite.Group()  # プレイヤーの体力用Group
+    enemy_lifes = pg.sprite.Group()  # 敵の体力用Group
+    # 変数定義
+    for coors in BossLife.life_coor:
+        player_lifes.add(BossLife(coors[0]))
+        enemy_lifes.add(BossLife(coors[1]))
+    tmr = 0  # 1フレームごとのカウント
+    # 体力調整
+    for _ in range(MAX_LIFE - max(1, int(player_life // 10))):
+        player_lifes.sprites()[0].kill()
+    span = 0  # 弾のスパン
+    mag = 1  # 弾の数増加用
+    # bool型定義(判定)
+    space_judge = False  # プレイヤーの攻撃フラグ
+
+    while True:
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                return "QUIT"
+
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    space_judge = True  # プレイヤーの攻撃判定
+
+        screen.blit(boss_bg, (0, 0))
+        outline_left.update(screen)
+        outline_right.update(screen)
+        # プレイヤー移動処理
+        Key_lst = pg.key.get_pressed()
+        player.update(Key_lst)
+        player_rct = player.sprite.rect  # プレイヤーのRectを取得
+        player.draw(screen)
+        # 敵移動処理
+        bound_check = enemy.sprite.update()  # 戻り値があるため格納(未使用)
+        enemy_rct = enemy.sprite.rect  # 敵のRectを取得
+        enemy.draw(screen)
+        # 弾処理(プレイヤー)
+        if space_judge:  # プレイヤーがスペースを押したら攻撃弾を発射
+            player_bullet = BossPlayerBullet(player_rct, 10)
+            player_bullets.add(player_bullet)
+            player_bullet_snd.play()  # 効果音再生
+            space_judge = False  # 連続での発射を防ぐ
+        player_bullets.update()
+        # 弾処理(敵)
+        # 予告弾
+        if tmr % 360 == 0:
+            for i in range(8):
+                sound_judge = (i == 0)  # 最初だけ効果音を鳴らす
+                preview_bullet = BossPreviewBullet(player_rct.center, 50, RED, preview_line_snd, preview_bullet_snd, sound_judge)
+                enemy_bullets.add(preview_bullet)
+        # 散弾
+        if tmr % 300 == 0:
+            shotgun_bullet = BossShotgunBullet(enemy_rct, 5, enemy_bullets, BLUE, shotgun_bullet_snd)
+            enemy_bullets.add(shotgun_bullet)
+        # 拡散弾
+        if tmr % (120 - span) == 0:
+            diff_num_lis = [14, 16, 18, 20]  # 拡散弾の数の候補
+            diff_num = random.choice(diff_num_lis)  # 拡散弾の数（毎回ランダム）
+            for i in range(diff_num * mag):
+                diffusion_bullet = BossDiffusionBullet(enemy_rct, 3, diff_num * mag, i, GOLD)
+                enemy_bullets.add(diffusion_bullet)
+            diffusion_bullet_snd.play()  # 効果音再生
+        # 直線弾
+        if tmr % (90 - span) in [0, 5, 10]:  # 三連で発射
+            linear_bullet = BossLinearBullet(player_rct, enemy_rct, 4, NEON_RED)
+            linear_bullet_snd.play()  # 効果音再生
+            enemy_bullets.add(linear_bullet)
+        # 曲線弾
+        if tmr % (60 - span) in [3, 8, 13]:  # 三連で発射
+            curve_bullet = BossCurveBullet(player_rct, enemy_rct, 6, NEON_PINK)
+            curve_bullet_snd.play()  # 効果音再生
+            enemy_bullets.add(curve_bullet)
+        enemy_bullets.update()
+        player_bullets.draw(screen)
+        enemy_bullets.draw(screen)
+        for bullet in enemy_bullets.sprites():
+            if hasattr(bullet, "draw_preview_line"):  # もしbulletが"draw_preview_line"を持っていれば予告線を表示する
+                bullet.draw_preview_line(screen)
+        # ダメージ処理(プレイヤー)
+        if pg.sprite.spritecollide(player.sprite, enemy_bullets, True, pg.sprite.collide_circle):  # 円での当たり判定
+            if len(player_lifes) > 0:
+                player_lifes.sprites()[0].kill()
+            if len(player_lifes) == 0:  # 負け
+                pg.mixer.music.stop()  # BGMストップ
+                game_over(screen)  # ゲームオーバー画面表示
+                break
+        # ダメージ処理(敵)
+        if pg.sprite.spritecollide(enemy.sprite, player_bullets, True, pg.sprite.collide_circle):  # 円での当たり判定
+            if len(enemy_lifes) > 0:
+                enemy_lifes.sprites()[0].kill()
+                if len(enemy_lifes) <= (MAX_LIFE // 4):
+                    span = 30  # 第四段階（弾の感覚が狭まる）
+                elif len(enemy_lifes) <= (MAX_LIFE // 2):
+                    mag = 2 # 第三段階（弾の数が増える）
+                elif len(enemy_lifes) <= (MAX_LIFE // 4)*3:
+                    span = 15  # 第二段階（弾の感覚が狭まる）
+            if len(enemy_lifes) == 0:  # 勝ち
+                pg.mixer.music.stop()  # BGMストップ
+                game_clear(screen)  # ゲームクリア画面表示
+                break
+        # 体力処理
+        player_lifes.draw(screen)
+        enemy_lifes.draw(screen)
+
+        pg.display.update()
+        tmr += 1
+        clock.tick(FPS)
+    return True
+
+
 def game_over(screen: pg.Surface):
     """
     GAMEOVER画面を表示するもの
+    引数：画像Surface
     """
     snd = pg.mixer.Sound("sound/gameover.wav")  # 効果音定義（GAME OVER音）
     fonto = pg.font.Font(None, 100)
@@ -1514,6 +1435,7 @@ def game_over(screen: pg.Surface):
 def game_clear(screen: pg.Surface):
     """
     GAMECLEAR画面を表示するもの
+    引数：画像Surface
     """
     snd = pg.mixer.Sound("sound/gameclear.wav")  # 効果音定義（GAME CLEAR音）
     fonto = pg.font.Font(None, 100)
@@ -1529,11 +1451,12 @@ def game_clear(screen: pg.Surface):
 
 
 def main():
-    pg.display.set_caption("ゲーム(仮)")
+    pg.display.set_caption("ごちゃまぜRPG")
 
     # ===↓変数定義↓===
     screen = pg.display.set_mode((WIDTH, HEIGHT))
     clock = pg.time.Clock()
+    fonto = pg.font.SysFont(None, 40)
     bg_image = pg.image.load("img/back1.png").convert_alpha()  # 背景画像
     map_background = pg.transform.scale(bg_image, (WIDTH, HEIGHT))  # 背景画像を画面サイズに合わせる
     game_map = GameMap(10, 20)  # マップ作成 
@@ -1541,6 +1464,9 @@ def main():
     current_map_y = 1  # マップ初期y座標 
     # マップ番号(1, 1) 中心
     game_map.load_map(current_map_y, current_map_x)  # マップロード
+    move_snd = pg.mixer.Sound("sound/move.wav")  # 効果音定義
+    move_snd.set_volume(0.1)  # 音量調整
+    trap_snd = pg.mixer.Sound("sound/trap_damage.wav")  # 効果音定義
     enemys = pg.sprite.Group()  # 敵のグループ作成
     bossgp = pg.sprite.Group()
     # 敵の座標読み込み
@@ -1548,7 +1474,7 @@ def main():
         enemys.add(Enemy(coor))
     # ボスの座標読み込み
     for coor in game_map.get_boss_positions():
-        enemys.add(Enemy(coor))
+        bossgp.add(Boss(coor))
     start_coor = game_map.get_cell(5, 10)["coor"]  # 初期位置
     player = Player(start_coor, game_map)  # プレイヤー定義
     players = pg.sprite.GroupSingle(player)  # プレイヤー用グループ（単体）
@@ -1559,8 +1485,10 @@ def main():
     battle_cursor = 0
     current_enemy = None
     font = pg.font.SysFont("msgothic", 40)
+    damage_tmr = 0 # ダメージを表示するタイマー
     last_buttle_judge = False  # ボス戦を終了したかの判定
-
+    enemy_event_judge = False  # イベントの連続発生を防ぐ判定（敵）
+    minigame_event_judge = False  # イベントの連続発生を防ぐ判定（ミニゲーム）
     # ===↑変数定義↑===
 
     while True:
@@ -1573,12 +1501,16 @@ def main():
                     move: str | None = None  # マップ移動の詳細を格納する変数
                     if event.key == pg.K_UP:
                         move = player.move(-1, 0)
+                        move_snd.play()
                     elif event.key == pg.K_DOWN:
                         move = player.move(1, 0)
+                        move_snd.play()
                     elif event.key == pg.K_LEFT:
                         move = player.move(0, -1)
+                        move_snd.play()
                     elif event.key == pg.K_RIGHT:
                         move = player.move(0, 1)
+                        move_snd.play()
                     # マップ移動処理
                     if move:
                         if move == "UP" and current_map_y > 0:
@@ -1608,29 +1540,43 @@ def main():
                         # プレイヤーを更新
                         player.rect.center = game_map.get_cell(player.row, player.col)["coor"]
                     if game_map.check_move(player.row, player.col) == 2:  # 移動した先が敵かの判定
-                        # 現在戦う敵を取得
-                        current_enemy = pg.sprite.spritecollideany(player, enemys)
-                        if random.random() <= 0.5:
-                        # ここにバトルイベントなどを追加
-                            game_state = "BATTLE"
-                            battle_phase = "COMMAND"
+                        if not enemy_event_judge:  # 連続発生を防ぐ
+                            enemy_event_judge = True
+                            # 現在戦う敵を取得
+                            current_enemy = pg.sprite.spritecollideany(player, enemys)
                             if current_enemy:
-                                current_enemy.image = current_enemy.battle_image
-                                current_enemy.rect = current_enemy.image.get_rect(center=(640, 300))
-                        else:
-                            result = tile_game()
-                            if result == "WIN":
-                                row, col = game_map.get_id(current_enemy.original_coor[0], current_enemy.original_coor[1])
-                                game_map.map_data[row][col]["type"] = 0  # 敵を倒したのでマスのtypeを0に変更
-                                current_enemy.kill()
+                                if random.random() <= 0.5:
+                                    # ここにバトルイベントなどを追加
+                                    game_state = "BATTLE"
+                                    battle_phase = "COMMAND"
+                                    current_enemy.image = current_enemy.battle_image
+                                    current_enemy.rect = current_enemy.image.get_rect(center=(640, 300))
+                                else:
+                                    result = tile_game(current_enemy.image)
+                                    if result == "QUIT":  # ゲーム終了
+                                        return
+                                    elif result == "WIN":
+                                        row, col = game_map.get_id(current_enemy.original_coor[0], current_enemy.original_coor[1])
+                                        game_map.map_data[row][col]["type"] = 0  # 敵を倒したのでマスのtypeを0に変更
+                                        current_enemy.kill()
+                    else:  # 敵から離れたら再度敵と戦えるように
+                        enemy_event_judge = False
                     if game_map.check_move(player.row, player.col) == 3:
-                        last_buttle_judge = lastbattle(screen, clock, player.hp)  # 終了したらTrue
+                        last_buttle_judge = lastbattle(screen, clock, player.hp)  # 戦いを終えていたらしたらTrue（終了したらQUIT）
+                        if last_buttle_judge == "QUIT":
+                            return
                     if game_map.check_move(player.row, player.col) == 4:
-                        if run_minigame(screen,clock)==True:
-                            if player.hp<=200:
-                                player.hp=200
+                        if not minigame_event_judge:  # 連続発生を防ぐ
+                            minigame_event_judge = True
+                            if run_minigame(screen,clock) == True:
+                                if player.hp <= 200:
+                                    player.hp = 200
+                    else:
+                        minigame_event_judge = False
                     if game_map.check_move(player.row, player.col) == 5:
-                        player.hp -= 30
+                            player.hp -= 30
+                            damage_tmr = 60  # ダメージを表示するタイマー
+                            trap_snd.play()
             elif game_state == "BATTLE":
                 if event.type == pg.KEYDOWN:
                     # 1. コマンド選択フェーズ
@@ -1677,7 +1623,7 @@ def main():
                                 current_enemy.rect = current_enemy.image.get_rect(center=current_enemy.original_coor)
                                 game_state = "MAP"
                             elif next_turn == "LOSE":
-                                print("GAME OVER"); return
+                                break
 
         # --- 描画処理 ---
         screen.fill(BLACK if game_state == "BATTLE" else WHITE) # バトル中は黒背景に
@@ -1690,11 +1636,16 @@ def main():
 
         if game_state == "MAP":
             screen.blit(map_background, (0, 0))
-            game_map.update_line(screen)  # 枠線表示（デバッグ用）
             game_map.update(screen)  # 岩を描画
             enemys.draw(screen)  # 敵を描画
             bossgp.draw(screen)  # ボスを描画
             players.draw(screen)  # プレイヤーを描画
+            if damage_tmr > 0:  # ダメージを表示
+                damage_txt = fonto.render("-30", True, RED)
+                screen.blit(damage_txt, (player.rect.right, player.rect.top - 20))
+                damage_tmr -= 1
+            hp_txt = fonto.render(f"HP: {player.hp}", True, RED)
+            screen.blit(hp_txt, (10, 10))
         elif game_state == "BATTLE":
             # バトルUIの描画
             if current_enemy:
@@ -1728,138 +1679,6 @@ def main():
         pg.display.update()
         clock.tick(FPS)
 
-
-# ボス戦（弾幕ゲー）用関数
-def lastbattle(screen: pg.Surface, clock: pg.time.Clock, player_life: int) -> bool:
-    """
-    ボス戦の弾幕ゲーを処理する関数
-    引数：画像Surface, pg.time.Clock, プレイヤーの体力
-    戻り値：True
-    """
-    pg.mixer.music.load("sound/boss_bgm.wav")  # BGM定義
-    pg.mixer.music.set_volume(0.3)  # BGM音量調整
-    pg.mixer.music.play(loops = -1)  # BGMループ
-    linear_bullet_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義
-    linear_bullet_snd.set_volume(0.5)  # 音量調整
-    curve_bullet_snd = pg.mixer.Sound("sound/boss_curve_bullet.wav")  # 効果音定義
-    curve_bullet_snd.set_volume(0.7)  # 音量調整
-    diffusion_bullet_snd = pg.mixer.Sound("sound/boss_diffusion_bullet.wav")  # 効果音定義
-    shotgun_bullet_snd = pg.mixer.Sound("sound/boss_shotgun_bullet.wav")  # 効果音定義
-    shotgun_bullet_snd.set_volume(0.7)  # 音量調整
-    player_bullet_snd = pg.mixer.Sound("sound/boss_player_bullet.wav")  # 効果音定義
-    player_bullet_snd.set_volume(0.5)  # 音量調整
-    preview_line_snd = pg.mixer.Sound("sound/boss_linear_bullet.wav")  # 効果音定義（予告線）
-    preview_bullet_snd = pg.mixer.Sound("sound/boss_preview_bullet.wav")  # 効果音定義
-    outline_left = BossOutline(x_left_outline)  # 左側境界線
-    outline_right = BossOutline(x_right_outline)  # 右側境界線
-    # 敵
-    enemy = pg.sprite.GroupSingle()
-    enemy.add(BossEnemy(outline_left.rct, outline_right.rct))
-    # プレイヤー
-    player = pg.sprite.GroupSingle()
-    player.add(BossPlayer(outline_left.rct, outline_right.rct))
-    enemy_bullets = pg.sprite.Group()  # 弾幕描画(敵)
-    player_bullets = pg.sprite.Group()  # 弾幕描画(プレイヤー)
-    # 体力描画
-    player_lifes = pg.sprite.Group()  # プレイヤーの体力用Group
-    enemy_lifes = pg.sprite.Group()  # 敵の体力用Group
-    # 変数定義
-    for coors in BossLife.life_coor:
-        player_lifes.add(BossLife(coors[0]))
-        enemy_lifes.add(BossLife(coors[1]))
-    tmr = 0  # 1フレームごとのカウント
-    # 体力調整
-    for _ in range(MAX_LIFE - max(1, int(player_life // 10))):
-        player_lifes.sprites()[0].kill()
-    # bool型定義(判定)
-    space_judge = False  # プレイヤーの攻撃フラグ
-
-    while True:
-        for event in pg.event.get():
-            if event.type == pg.QUIT: return
-
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_SPACE:
-                    space_judge = True  # プレイヤーの攻撃判定
-
-        screen.fill(WHITE)
-        outline_left.update(screen)
-        outline_right.update(screen)
-        # プレイヤー移動処理
-        Key_lst = pg.key.get_pressed()
-        player.update(Key_lst)
-        player_rct = player.sprite.rect  # プレイヤーのRectを取得
-        player.draw(screen)
-        # 敵移動処理
-        bound_check = enemy.sprite.update()  # 戻り値があるため格納(未使用)
-        enemy_rct = enemy.sprite.rect  # 敵のRectを取得
-        enemy.draw(screen)
-        # 弾処理(プレイヤー)
-        if space_judge:  # プレイヤーがスペースを押したら攻撃弾を発射
-            player_bullet = BossPlayerBullet(player_rct, 10)
-            player_bullets.add(player_bullet)
-            player_bullet_snd.play()  # 効果音再生
-            space_judge = False  # 連続での発射を防ぐ
-        player_bullets.update()
-        # 弾処理(敵)
-        # 予告弾
-        if tmr % 360 == 0:
-            for i in range(7):
-                sound_judge = (i == 0)  # 最初だけ効果音を鳴らす
-                preview_bullet = BossPreviewBullet(player_rct.center, 50, RED, preview_line_snd, preview_bullet_snd, sound_judge)
-                enemy_bullets.add(preview_bullet)
-        # 散弾
-        if tmr % 300 == 0:
-            shotgun_bullet = BossShotgunBullet(enemy_rct, 5, enemy_bullets, BLUE, shotgun_bullet_snd)
-            enemy_bullets.add(shotgun_bullet)
-        # 拡散弾
-        if tmr % 120 == 0:
-            diff_num_lis = [8, 10, 12, 14, 16, 18, 20]  # 拡散弾の数の候補
-            diff_num = random.choice(diff_num_lis)  # 拡散弾の数（毎回ランダム）
-            for i in range(diff_num):
-                diffusion_bullet = BossDiffusionBullet(enemy_rct, 3, diff_num, i, GOLD)
-                enemy_bullets.add(diffusion_bullet)
-            diffusion_bullet_snd.play()  # 効果音再生
-        # 直線弾
-        if tmr % 90 in [0, 5, 10]:  # 三連で発射
-            linear_bullet = BossLinearBullet(player_rct, enemy_rct, 4, NEON_RED)
-            linear_bullet_snd.play()  # 効果音再生
-            enemy_bullets.add(linear_bullet)
-        # 曲線弾
-        if tmr % 60 in [3, 8, 11]:  # 三連で発射
-            curve_bullet = BossCurveBullet(player_rct, enemy_rct, 6, NEON_PINK)
-            curve_bullet_snd.play()  # 効果音再生
-            enemy_bullets.add(curve_bullet)
-        enemy_bullets.update()
-        player_bullets.draw(screen)
-        enemy_bullets.draw(screen)
-        for bullet in enemy_bullets.sprites():
-            if hasattr(bullet, "draw_preview_line"):  # もしbulletが"draw_preview_line"を持っていれば予告線を表示する
-                bullet.draw_preview_line(screen)
-        # ダメージ処理(プレイヤー)
-        if pg.sprite.spritecollide(player.sprite, enemy_bullets, True, pg.sprite.collide_circle):  # 円での当たり判定
-            if len(player_lifes) > 0:
-                player_lifes.sprites()[0].kill()
-            if len(player_lifes) == 0:  # 負け
-                pg.mixer.music.stop()  # BGMストップ
-                game_over(screen)  # ゲームオーバー画面表示
-                break
-        # ダメージ処理(敵)
-        if pg.sprite.spritecollide(enemy.sprite, player_bullets, True, pg.sprite.collide_circle):  # 円での当たり判定
-            if len(enemy_lifes) > 0:
-                enemy_lifes.sprites()[0].kill()
-            if len(enemy_lifes) == 0:  # 勝ち
-                pg.mixer.music.stop()  # BGMストップ
-                game_clear(screen)  # ゲームクリア画面表示
-                break
-        # 体力処理
-        player_lifes.draw(screen)
-        enemy_lifes.draw(screen)
-
-        pg.display.update()
-        tmr += 1
-        clock.tick(FPS)
-    return True
 
 if __name__ == "__main__":
     pg.init()
